@@ -1,6 +1,6 @@
 #include "ch32fun.h"
 
-#include "lcd_driver.h"
+#include "lcd_emulator.h"
 
 
 #define PIN_DEBUG PC4
@@ -15,7 +15,7 @@ uint8_t buffer[DDRAM_LEN];
 uint8_t buffer_address;
 display_state_t display_state;
 
-void init_lcd_driver() {
+void init_lcd_emulator() {
     display_state = DISPLAY_STATE_OFF;
     memset(buffer, 0, DDRAM_LEN);
     buffer_address = 0;
@@ -54,7 +54,7 @@ void lcd_handle_command(const command_t* cmd) {
         break;
     }
     case LCD_COMMAND_RESET: {
-        init_lcd_driver();
+        init_lcd_emulator();
         break;
     }
     default:

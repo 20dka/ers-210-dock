@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#include "lcd_driver.h"
+#include "lcd_emulator.h"
 
 #define PIN_DEBUG PC4
 
@@ -171,7 +171,7 @@ BLIP();
 	printf("ERS-210 dock LCD controller.\r\nInitialized GPIO\n");
 	printf("%d", sizeof(command_t));
 
-	init_lcd_driver();
+	init_lcd_emulator();
 
 	size_t max = 12 * 7;
 	packet_t buf[max];

@@ -2,9 +2,9 @@ all : flash
 
 TARGET:=main
 
-ADDITIONAL_C_FILES+=lcd_driver.c
+ADDITIONAL_C_FILES+=lcd_emulator.c
 
-EXTRA_CFLAGS+=-Wextra
+EXTRA_CFLAGS+=-Wextra -I..
 
 TARGET_MCU=CH32V003
 
