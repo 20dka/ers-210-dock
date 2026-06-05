@@ -22,11 +22,12 @@ void init_lcd_driver() {
 }
 
 void lcd_handle_command(const command_t* cmd) {
-BLIP();
-    if (cmd->command != 0) {
-BLIP();
-BLIP();
-        printf("command: %x data: %x\n", cmd->command, cmd->data);
+    BLIP();
+
+    if (cmd->command != LCD_COMMAND_ADDRESS_SET) {
+        BLIP();
+        BLIP();
+        //printf("command: %x data: %x\n", cmd->command, cmd->data);
     }
 
 	switch (cmd->command)
@@ -63,9 +64,10 @@ BLIP();
 }
 
 void lcd_write_nibble(uint8_t nibble) {
-    buffer[buffer_address++] = nibble;
+    buffer[buffer_address] = nibble;
+    buffer_address++;
     if (buffer_address >= DDRAM_LEN) {
-        printf("\t\t\t\tbuffer overrun\n");
+        //printf("\t\t\t\tbuffer overrun\n");
         buffer_address = 0;
     }
 }
@@ -80,11 +82,9 @@ void print_lcd_buffer() {
         printf("%d\t", i);
         for (size_t f = 0; f < DDRAM_LEN; f++)
         {
-            
             printf("%c", !!(buffer[f] & (1<<i)) ? 'X' : ' ');
         }
         printf("\n");
         
     }
-    
 }

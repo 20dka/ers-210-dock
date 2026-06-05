@@ -25,6 +25,7 @@
 
 #define PORT_CHAR(p, b) ((port & (1<<b)) ? '1' : '0')
 
+#define HALF_MS_TIME (DELAY_MS_TIME/2)
 #define TIMEOUT_FUNC(start, active) if (active && TimeElapsed32(funSysTick32(), start) > DELAY_MS_TIME) return 1;
 
 void printport(uint32_t port) {
@@ -73,7 +74,6 @@ int wait_for_chipselect_fall() {
 
 int get_packet(packet_t* packet) {
 	memset(packet, 0, sizeof(packet_t));
-	packet->valid = 1;
 
 	uint32_t port = GPIO_port_digitalRead(GPIO_port_C);
 	uint8_t bit_count = 0;
@@ -82,8 +82,9 @@ int get_packet(packet_t* packet) {
 	// packet START
 
 	uint32_t time_since_last_bit = 0;
+	uint32_t last_bit = 0;
 
-	while (bit_count < 8 || time_since_last_bit > DELAY_MS_TIME) {
+	while (bit_count < 8 && time_since_last_bit < HALF_MS_TIME) {
 		if (wait_for_clock_rise()) return 3;
 		port = GPIO_port_digitalRead(GPIO_port_C);
 		//data valid
@@ -93,7 +94,6 @@ int get_packet(packet_t* packet) {
 		packet->data |= !!(port & BIT_SDA);
 		bit_count++;
 
-		static uint32_t last_bit = 0;
 
 		if (last_bit > 0)
 			time_since_last_bit = TimeElapsed32(now,  last_bit);
@@ -101,34 +101,48 @@ int get_packet(packet_t* packet) {
 		last_bit = now;
 	}
 
-	packet->is_command = (port & BIT_CD);
-
-	if (bit_count != 8) {
-		packet->valid = 0;
+	if (time_since_last_bit >= HALF_MS_TIME) {
+		printf("%d\n", time_since_last_bit);
 		return 1;
 	}
+
+	packet->is_command = (port & BIT_CD);
+	packet->valid = 1;
 
 	return 0;
 }
 
 void process_packet(const packet_t* packet) {
 	if (packet->is_command) {
-	BLIP();
-		command_t cmd = *(command_t*)(&(packet->data));
-		//printf("%X", packet->data);
+		command_t cmd = {.command = (packet->data) >> 5, .data = (packet->data &0b111)};
 		lcd_handle_command(&cmd);
 	} else {
-	BLIP();
-	BLIP();
 		// we assume 8-bit mode
 		lcd_write_nibble(packet->data >> 4);
 		lcd_write_nibble(packet->data & 0b1111);
 	}
 }
 
-void print_packet(packet_t packet) {
-	if (packet.valid) {
-		printf("%c%X\n", packet.is_command ? 'C' : 'D', packet.data);
+void print_packet(const packet_t* packet) {
+	if (packet->valid) {
+		printf("%c ", packet->is_command ? 'C' : 'D');
+
+		if (packet->is_command) {
+			command_t cmd = {.command = (packet->data) >> 5, .data = (packet->data &0b111)};
+
+			printf("%x %x", cmd.command, cmd.data);
+		} else {
+			printf("%x", packet->data);
+			if (packet->data) {
+				uint8_t v = packet->data;
+				uint8_t c;
+				for (c = 0; v; c++) v &= v-1;
+
+				printf("\t(%d)", c);
+			}
+		}
+
+		printf("\n");
 	} else {
 		printf("ERR\n");
 	}
@@ -155,6 +169,7 @@ BLIP();
 	Delay_Ms(50);
 
 	printf("ERS-210 dock LCD controller.\r\nInitialized GPIO\n");
+	printf("%d", sizeof(command_t));
 
 	init_lcd_driver();
 
@@ -166,22 +181,33 @@ BLIP();
 
 	while (1) {
 		int ret = get_packet(&buf[idx]);
-		BLIP();
-
+BLIP();
 		switch (ret)
 		{
 		case 0: {
 			packets_since++;
+BLIP();
 			process_packet(&buf[idx]);
 			idx++;
 			break;
 			}
 		case 2:
 		case 3: {
-			if (packets_since) {
-				print_lcd_buffer();
+			if (packets_since > 10) {
+				funDigitalWrite( PIN_DEBUG, FUN_HIGH );
+				//print_lcd_buffer();
 				printf("\t\t\t\t\t\t\t%d\n", packets_since);
+
+				for (size_t i = 0; i < packets_since; i++)
+				{
+					printf("%3d: ", i+1);
+					print_packet(&buf[i]);
+				}
+
+				idx = 0;
 				packets_since = 0;
+
+				funDigitalWrite( PIN_DEBUG, FUN_LOW );
 			}
 			break;
 			}
@@ -191,11 +217,7 @@ BLIP();
 		}
 
 		if (idx == max) {
-/*			for (size_t i = 0; i < max; i++)
-			{
-				printf("%3d: ", i+1);
-				print_packet(buf[i]);
-			}*/
+
 			idx = 0;
 		}
 	}
